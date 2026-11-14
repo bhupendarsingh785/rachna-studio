@@ -188,6 +188,9 @@ a.ghost{color:var(--tx);text-decoration:none;padding:7px 10px;border-radius:10px
   <span id="tcode">00:00.0 / 00:00.0</span>
   <button id="splitB" title="Playhead par kaato">✂️<span class="hideM"> Split</span></button>
   <button id="delB" title="Delete">🗑</button>
+  <button id="autoB" title="Auto edit — bekar clip hatao, fade + saaf awaaz">✨<span class="hideM"> Auto</span></button>
+  <button id="cleanB" title="Awaaz saaf karo (background noise kam)">🔊<span class="hideM"> Saaf awaaz</span></button>
+  <button id="hindiB" title="Hindi me bolo (TTS)">🗣️<span class="hideM"> Hindi bol</span></button>
  </div>
 </section>
 <section id="tl">
@@ -254,7 +257,7 @@ async function importFiles(files){
 }
 function addToTimeline(m,opt={}){
  if(m.kind==='audio'){P.audios.push({id:uid(),media:m.id,name:m.name,start:opt.start??t,in:0,dur:opt.dur??m.dur,vol:opt.vol??1,fadeIn:.3,fadeOut:1})}
- else{const c={id:uid(),type:m.kind,media:m.id,in:0,out:m.dur||0,dur:opt.dur??3,speed:1,vol:1,trans:opt.trans??(P.clips.length?'fade':'none'),filter:'none',kb:m.kind==='image',fit:'cover'};P.clips.push(c);sel={k:'clip',id:c.id}}
+ else{const c={id:uid(),type:m.kind,media:m.id,in:0,out:m.dur||0,dur:opt.dur??3,speed:1,vol:1,trans:opt.trans??(P.clips.length?'fade':'none'),filter:'none',kb:m.kind==='image',fit:'cover',clean:false};P.clips.push(c);sel={k:'clip',id:c.id}}
  syncEls();
 }
 function libUI(){$('#lib').innerHTML=(P.mediaIds||[]).filter(i=>media[i]).map(i=>{const m=media[i];return `<div data-m="${i}" style="background-image:url('${m.thumb}')" title="${m.name}">${m.kind==='audio'?'🎵':''}<small>${m.kind==='image'?'📷':fmt(m.dur)}</small></div>`}).join('')||'<p class="hint" style="grid-column:1/-1">Abhi kuch nahi. Upar wala button dabao.</p>'}
@@ -272,7 +275,17 @@ function syncEls(){
  Object.keys(els).forEach(k=>{if(!want.has(k)){els[k].pause();delete els[k]}});
 }
 function ensureAudio(){if(AC)return;AC=new (window.AudioContext||window.webkitAudioContext)();recDest=AC.createMediaStreamDestination();Object.values(els).forEach(hook)}
-function hook(el){if(!AC||gains.has(el))return;try{const s=AC.createMediaElementSource(el),g=AC.createGain();s.connect(g);g.connect(AC.destination);g.connect(recDest);gains.set(el,g)}catch(e){console.warn(e)}}
+function hook(el){if(!AC||gains.has(el))return;try{
+ const s=AC.createMediaElementSource(el),g=AC.createGain();
+ // 🔊 saaf awaaz chain: high-pass (rumble hatao) -> low-pass (hiss hatao) -> compressor (awaaz barabar) -> gain
+ const hp=AC.createBiquadFilter();hp.type='highpass';hp.frequency.value=90;
+ const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=12000;
+ const comp=AC.createDynamicsCompressor();comp.threshold.value=-28;comp.knee.value=18;comp.ratio.value=4;comp.attack.value=.003;comp.release.value=.25;
+ s.connect(hp);hp.connect(lp);lp.connect(comp);comp.connect(g);g.connect(AC.destination);g.connect(recDest);
+ gains.set(el,g);cleanChain.set(el,{hp,lp,comp});
+}catch(e){console.warn(e)}}
+const cleanChain=new Map();
+function applyClean(el,on){const c=cleanChain.get(el);if(!c)return;c.hp.frequency.value=on?120:10;c.lp.frequency.value=on?9000:22000;c.comp.ratio.value=on?6:1;c.comp.threshold.value=on?-32:0}
 function setVol(el,v){const g=gains.get(el);if(g)g.gain.value=v;else el.volume=clamp(v,0,1)}
 /* ---------- timing ---------- */
 const clen=c=>c.type==='video'?Math.max(.1,(c.out-c.in)/c.speed):c.dur;
@@ -373,6 +386,43 @@ function syncMedia(){
 }
 let t0=0,raf=0,onEnd=null;
 function play(){if(!P.clips.length&&!P.texts.length&&!P.audios.length)return toast('Pehle Media jodo');ensureAudio();AC.resume();if(t>=total()-.05)t=0;playing=true;t0=performance.now()-t*1000;$('#playBtn').textContent='❚❚';syncMedia();loop()}
+
+document.addEventListener('DOMContentLoaded',()=>{});
+/* ================= AUTO TOOLS ================= */
+function autoEdit(){
+ if(!P.clips.length) return toast('Pehle media jodo');
+ const before=P.clips.length;
+ // 1) bahut chhote clips hatao (<0.4s)
+ P.clips=P.clips.filter(c=>clen(c)>=0.4);
+ // 2) har clip par fade transition + saaf awaaz
+ P.clips.forEach((c,i)=>{c.clean=true;if(i>0&&(!c.trans||c.trans==='none'))c.trans='fade'});
+ // 3) total bahut lamba ho to aakhri clips hatao (target 60s)
+ let guard=0;
+ while(total()>60&&P.clips.length>2&&guard++<50){P.clips.pop()}
+ commit();renderAll&&renderAll();
+ toast('✨ Auto edit: '+(before-P.clips.length)+' clip hataye, fade + saaf awaaz laga');
+}
+
+function cleanAll(){
+ if(!P.clips.length) return toast('Pehle media jodo');
+ P.clips.forEach(c=>c.clean=true);
+ // jo video elements already ban chuke hain unpar bhi lagao
+ document.querySelectorAll('video').forEach(v=>applyClean(v,true));
+ commit();
+ toast('🔊 Sab clips par saaf awaaz laga (rumble + hiss kam, awaaz barabar)');
+}
+
+function hindiVoice(text){
+ const t=(text||prompt('Hindi me kya bolna hai?')||'').trim();
+ if(!t) return;
+ if(!('speechSynthesis' in window)) return toast('Is browser me awaaz nahi');
+ const u=new SpeechSynthesisUtterance(t);
+ u.lang='hi-IN';u.rate=.95;u.pitch=1;
+ const vs=speechSynthesis.getVoices().filter(v=>/hi|Hindi/i.test(v.lang+v.name));
+ if(vs.length) u.voice=vs[0];
+ speechSynthesis.cancel();speechSynthesis.speak(u);
+ toast('🗣️ Hindi me bol raha hoon');
+}
 function pause(){playing=false;cancelAnimationFrame(raf);$('#playBtn').textContent='▶';syncMedia();draw()}
 function loop(){if(!playing)return;t=(performance.now()-t0)/1000;const T=total();if(t>=T){t=T;draw();pause();if(onEnd){const f=onEnd;onEnd=null;f()}return}syncMedia();draw();autoScroll();raf=requestAnimationFrame(loop)}
 function seek(x){t=clamp(x,0,total());if(playing)t0=performance.now()-t*1000;syncMedia();draw()}
@@ -463,7 +513,10 @@ function delSel(){const o=getSel();if(!o)return;if(sel.k==='over')P.overs=P.over
 function split(){const ca=P.clips.length?clipAt(t):null;if(!ca)return;const c=P.clips[ca.i];if(ca.lt<.15||clen(c)-ca.lt<.15)return toast('Clip ke beech mein playhead rakho');
  const n={...JSON.parse(JSON.stringify(c)),id:uid(),trans:'none'};if(c.type==='video'){const cut=c.in+ca.lt*c.speed;n.in=cut;c.out=cut}else{n.dur=c.dur-ca.lt;c.dur=ca.lt}
  P.clips.splice(ca.i+1,0,n);sel={k:'clip',id:n.id};syncEls();commit();propsUI();toast('✂️ Kat gaya')}
-$('#splitB').onclick=split;$('#delB').onclick=delSel;$('#undoB').onclick=undo;$('#redoB').onclick=redo;
+$('#splitB').onclick=split;$('#autoB')&&($('#autoB').onclick=autoEdit);
+$('#cleanB')&&($('#cleanB').onclick=cleanAll);
+$('#hindiB')&&($('#hindiB').onclick=()=>hindiVoice());
+$('#delB').onclick=delSel;$('#undoB').onclick=undo;$('#redoB').onclick=redo;
 /* ---------- text presets ---------- */
 function addTextItem(o){const x=Object.assign({id:uid(),text:'Apna text',start:Math.round(t*10)/10,dur:3,x:.5,y:.5,size:Math.round(Math.min(P.w,P.h)*.08),color:'#ffffff',font:'Poppins',weight:800,anim:'pop',bg:null,stroke:null,glow:false},o);P.texts.push(x);sel={k:'text',id:x.id};commit();propsUI();return x}
 $$('[data-tp]').forEach(b=>b.onclick=()=>{const u=Math.min(P.w,P.h),k=b.dataset.tp;
