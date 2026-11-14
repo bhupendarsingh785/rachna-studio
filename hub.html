@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Seetal Hub — saare system ek jagah</title>
+<style>
+  :root{--bg:#08080f;--card:#13131f;--line:#26263a;--txt:#eef0ff;--dim:#9aa0c0;--vio:#7c5cff;--pink:#ff3fa4;--green:#00d4b4;--amber:#ffb020}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#1a1440,#08080f 60%);color:var(--txt);
+       font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Devanagari",sans-serif;line-height:1.55}
+  header{padding:22px 16px 6px;text-align:center}
+  h1{margin:0;font-size:23px;letter-spacing:.3px}
+  header p{margin:6px 0 0;color:var(--dim);font-size:13.5px}
+  .wrap{max-width:980px;margin:0 auto;padding:16px}
+  .grp{margin:20px 0 6px;font-size:12.5px;letter-spacing:1.6px;color:var(--dim);text-transform:uppercase}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  a.card{display:block;text-decoration:none;color:inherit;background:var(--card);border:1px solid var(--line);
+         border-radius:16px;padding:15px;transition:.15s}
+  a.card:hover,a.card:focus{border-color:var(--vio);transform:translateY(-2px)}
+  .ic{font-size:26px}
+  .t{font-weight:800;margin-top:6px;font-size:15.5px}
+  .d{color:var(--dim);font-size:12.8px;margin-top:3px}
+  .tag{display:inline-block;margin-top:9px;font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
+  .tag.on{color:#0b1a12;background:var(--green);border-color:transparent;font-weight:800}
+  .tag.pc{color:#1a1206;background:var(--amber);border-color:transparent;font-weight:800}
+  footer{max-width:980px;margin:26px auto 40px;padding:0 16px;color:var(--dim);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎨 Seetal Hub</h1>
+  <p>Saare system ek jagah — jo browser me chalta hai woh turant khulega, jo server maangta hai uska repo milega.</p>
+</header>
+
+<div class="wrap">
+
+  <div class="grp">Design &amp; Video (browser me — turant chalta hai)</div>
+  <div class="grid">
+    <a class="card" href="./index.html">
+      <div class="ic">🎨</div><div class="t">Rachna Studio</div>
+      <div class="d">Poster, thumbnail, story, certificate — 20 templates, AI image, share link, brand kit</div>
+      <span class="tag on">✅ chalu</span>
+    </a>
+    <a class="card" href="./video.html">
+      <div class="ic">🎬</div><div class="t">Rachna Video</div>
+      <div class="d">Story likho → mood ke hisaab se movie, music, SFX, Hindi awaaz, auto edit</div>
+      <span class="tag on">✅ chalu</span>
+    </a>
+  </div>
+
+  <div class="grp">Social app</div>
+  <div class="grid">
+    <a class="card" href="https://bhupendarsingh785.github.io/youme/app.html">
+      <div class="ic">💬</div><div class="t">YouMe</div>
+      <div class="d">Feed, reels, inbox, DM — Google login, server par save</div>
+      <span class="tag on">✅ chalu</span>
+    </a>
+    <a class="card" href="https://youme-api-yjxc.onrender.com/api/health">
+      <div class="ic">🩺</div><div class="t">YouMe backend</div>
+      <div class="d">Health check — server jag raha hai ya so raha hai</div>
+      <span class="tag on">✅ live</span>
+    </a>
+  </div>
+
+  <div class="grp">Seetal system</div>
+  <div class="grid">
+    <a class="card" href="https://bhupendarsingh785.github.io/seetal-trader/hub.html">
+      <div class="ic">🏠</div><div class="t">Seetal Hub</div>
+      <div class="d">Trader, Studio, Doctor, Notes, Vault — ek darwaza</div>
+      <span class="tag on">✅ chalu</span>
+    </a>
+    <a class="card" href="https://bhupendarsingh785.github.io/seetal-trader/studio-v10.html">
+      <div class="ic">🧑‍💻</div><div class="t">Studio v10</div>
+      <div class="d">Code editor + build + AI + ＋ auto process</div>
+      <span class="tag on">✅ chalu</span>
+    </a>
+    <a class="card" href="https://bhupendarsingh785.github.io/seetal-trader/doctor.html">
+      <div class="ic">🩺</div><div class="t">Doctor</div>
+      <div class="d">7 platform check, score /100, auto-fix</div>
+      <span class="tag on">✅ chalu</span>
+    </a>
+    <a class="card" href="https://bhupendarsingh785.github.io/seetal-trader/seetal-app.html">
+      <div class="ic">📱</div><div class="t">Seetal App</div>
+      <div class="d">Ek app me sab — install karke phone me rakho</div>
+      <span class="tag on">✅ chalu</span>
+    </a>
+  </div>
+
+  <div class="grp">Server wale system (computer/server par chalte hain)</div>
+  <div class="grid">
+    <a class="card" href="https://github.com/bhupendarsingh785/toonistaan-studio">
+      <div class="ic">🧸</div><div class="t">Toonistaan Studio</div>
+      <div class="d">Hindi 3D cartoon kahani → video (Python + Blender + ffmpeg + AI models)</div>
+      <span class="tag pc">💻 server chahiye</span>
+    </a>
+    <a class="card" href="https://github.com/bhupendarsingh785/seetal-trader">
+      <div class="ic">🤖</div><div class="t">OpenYug Agent</div>
+      <div class="d">Khud seekhta hai, khud kaam chunta hai (GitHub Actions, har 15 min)</div>
+      <span class="tag on">✅ chalu</span>
+    </a>
+    <a class="card" href="https://github.com/bhupendarsingh785/youme">
+      <div class="ic">📦</div><div class="t">YouMe code</div>
+      <div class="d">Node + SQLite backend, 50 tests, CI + Pages</div>
+      <span class="tag on">✅ chalu</span>
+    </a>
+  </div>
+
+</div>
+
+<footer>
+  Browser wale system (Rachna, YouMe) turant chalte hain. Toonistaan Python/Blender par chalta hai —
+  uske liye server ya computer chahiye (README me poora setup likha hai).<br>
+  Sab kuch free tools par bana hai — koi ads nahi, koi tracking nahi.
+</footer>
+</body>
+</html>
