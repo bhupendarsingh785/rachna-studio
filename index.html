@@ -165,6 +165,7 @@ footer{background:var(--bg2);border-top:1px solid var(--line);display:flex;align
    <button data-act="toVideo">🎬 Design ko Video Editor mein bhejo</button>
    <button data-act="save">💾 Project save (.json)</button>
    <button data-act="open">📂 Project kholo (.json)</button>
+   <button data-act="tools">🔌 Tools connect (API)</button>
    <button data-act="share">🔗 Share link copy karo</button>
    <button data-act="brand">🎨 Brand kit (rang + font)</button>
    <button data-act="shortcuts">⌨️ Shortcuts</button>
@@ -1194,11 +1195,67 @@ function brandKit(){
  commit();toast('🎨 Brand lag gaya ('+S.length+' element)');
 }
 
+/* ================= TOOLS CONNECT =================
+   Koi bhi bahar ka tool/API jodo (Canva, OBS, n8n, apna server...).
+   Sab kuch browser me save hota hai — koi login nahi. */
+function toolsGet(){try{return JSON.parse(localStorage.getItem('rachna.tools')||'[]')}catch(e){return[]}}
+function toolsSet(t){try{localStorage.setItem('rachna.tools',JSON.stringify(t))}catch(e){}}
+
+async function runTool(name,payload){
+ const t=toolsGet().find(x=>x.name.toLowerCase()===String(name||'').toLowerCase());
+ if(!t) throw new Error('Tool nahi mila: '+name);
+ const opt={method:(t.method||'POST').toUpperCase(),headers:{'Content-Type':'application/json'}};
+ if(t.key) opt.headers[t.header||'Authorization']=(t.prefix||'Bearer ')+t.key;
+ if(opt.method!=='GET'&&payload!==undefined) opt.body=JSON.stringify(payload);
+ const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),20000);opt.signal=ctrl.signal;
+ try{
+  const r=await fetch(t.url,opt);
+  const txt=await r.text();
+  let j=null;try{j=JSON.parse(txt)}catch(e){}
+  return {ok:r.ok,status:r.status,data:j,text:txt.slice(0,500)};
+ }finally{clearTimeout(to)}
+}
+
+function toolsPanel(){
+ const list=toolsGet();
+ const rows=list.map((t,i)=>`<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #e5e7eb">
+   <b style="flex:1">${t.name}</b><span class="hint">${t.method||'POST'}</span>
+   <button data-tool-test="${i}" style="padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;background:#fff">Test</button>
+   <button data-tool-del="${i}" style="padding:6px 10px;border-radius:8px;border:1px solid #fca5a5;background:#fff;color:#b91c1c">Del</button>
+ </div>`).join('')||'<p class="hint">Abhi koi tool nahi juda.</p>';
+ info('🔌 Tools connect',`<p class="hint">Koi bhi API jodo — name, URL, method aur key. Agent bhi inhe use kar sakta hai ("tool: &lt;naam&gt;").</p>
+  ${rows}
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+   <button id="toolAdd" style="padding:10px 16px;border-radius:10px;border:0;background:#7c5cff;color:#fff;font-weight:700">+ Naya tool jodo</button>
+   <button id="toolOBS" style="padding:10px 16px;border-radius:10px;border:1px solid #d1d5db;background:#fff">🎥 OBS (jaldi)</button>
+  </div>
+  <p class="hint" style="margin-top:10px">Note: bahar ka API browser se chalta hai — us server par CORS khula hona chahiye.</p>`);
+ const add=$('#toolAdd');
+ if(add) add.onclick=()=>{
+  const name=prompt('Tool ka naam (jaise: n8n, MyServer):');if(!name)return;
+  const url=prompt('Poora URL (https://...):');if(!url)return;
+  const method=(prompt('Method (GET/POST):','POST')||'POST').toUpperCase();
+  const key=prompt('API key (khaali chhod sakte ho):')||'';
+  const t=toolsGet();t.push({name:name.trim(),url:url.trim(),method,key:key.trim()});toolsSet(t);toast('✅ '+name+' juda');toolsPanel();
+ };
+ const obs=$('#toolOBS');
+ if(obs) obs.onclick=()=>info('🎥 OBS connect',`<p>OBS se jodne ke liye OBS me <b>Tools → WebSocket Server Settings</b> kholo aur <b>Enable WebSocket server</b> on karo (port 4455).</p><p class="hint">Browser se OBS ka password wala WebSocket abhi seedha nahi chalta (browser bandish). Filhaal: OBS me <b>Browser Source</b> daal kar is page ka link use karo, ya <b>Tools connect</b> me apna bridge URL jodo (n8n/Node).</p>`);
+ document.querySelectorAll('[data-tool-test]').forEach(b=>b.onclick=async()=>{
+  const t=toolsGet()[+b.dataset.toolTest];b.textContent='…';
+  try{const r=await runTool(t.name,{ping:true,from:'rachna-studio'});b.textContent=r.ok?'✅ '+r.status:'❌ '+r.status;toast(t.name+': HTTP '+r.status)}
+  catch(e){b.textContent='❌';toast('Nahi chala: '+e.message)}
+ });
+ document.querySelectorAll('[data-tool-del]').forEach(b=>b.onclick=()=>{
+  const t=toolsGet();const n=t[+b.dataset.toolDel].name;t.splice(+b.dataset.toolDel,1);toolsSet(t);toast('🗑 '+n+' hataya');toolsPanel();
+ });
+}
+
 function loadState(d,a){doc=d;assets=Object.assign(assets,a);cur=0;sel=[];hist=[];fut=[];lastSnap=snap();upUI();fullUI();fit()}
 $('#fileMenu').addEventListener('click',ev=>{const m=$('#fileMenu');if(ev.target.closest('#btnFile')){m.classList.toggle('open');return}
  const a=ev.target.closest('[data-act]');if(!a)return;m.classList.remove('open');const k=a.dataset.act;
  if(k==='new'){if(confirm('Naya design shuru karein? (Purana design save nahi hua ho to pehle File > Project save karo)')){loadState(newDoc(),{});$('#btnResize').click()}}
  if(k==='toVideo')sendToVideo();if(k==='save')saveProject();if(k==='open')$('#fileJson').click();
+ if(k==='tools')toolsPanel();
  if(k==='share')shareLink();
  if(k==='brand')brandKit();
  if(k==='shortcuts')info('⌨️ Shortcuts',`<div class="kbd"><b>T</b>Text jodo<b>R / O</b>Rectangle / Circle<b>L</b>Line<b>P</b>Draw mode<b>Double-click</b>Text edit<b>Shift + click</b>Multi select<b>Ctrl+Z / Ctrl+Y</b>Undo / Redo<b>Ctrl+C / V / X</b>Copy / Paste / Cut<b>Ctrl+D</b>Duplicate<b>Ctrl+A</b>Sab select<b>Ctrl+L</b>Lock<b>Delete</b>Hatao<b>Arrows</b>Khiskao (Shift = 10px)<b>[ / ]</b>Layer peeche / aage<b>Ctrl+[ / ]</b>Sabse peeche / aage<b>+ / − / 0</b>Zoom / Fit<b>Ctrl+S</b>Project save<b>Ctrl+wheel</b>Zoom<b>Shift + resize</b>Ratio lock</div>`);
@@ -1301,6 +1358,7 @@ function designSummary(){const S=selEls();return `Design: ${doc.w}x${doc.h}px, $
 function agentSystem(){return `You are "Rachna Agent", the assistant inside Rachna Studio, a free Canva-like design editor. The user writes Hindi, Hinglish or English. Turn the request into editor actions. Reply ONLY with JSON: {"say":"short friendly Hinglish reply","actions":[...]}.
 Actions (use only these):
 {"do":"template","name":"${TEMPLATES.map(t=>t.n).join('|')}"}
+{"do":"tool","name":"${toolsGet().map(t=>t.name).join('|')||'koi nahi'}"}
 {"do":"addText","text":"...","role":"heading|subheading|body","color":"#hex","font":"${FONTS.slice(0,19).join('|')}","pos":"top|middle|bottom","effect":"none|shadow|outline|neon|3d|bg"}
 {"do":"editText","find":"existing text (part)","text":"new text"}
 {"do":"background","color":"#hex","color2":"#hex (optional, makes gradient)"}
@@ -1350,6 +1408,7 @@ async function runActions(list){
   case 'removeBg':{let e=selEls().find(x=>x.type==='image')||[...page().els].reverse().find(x=>x.type==='image');if(!e){say('Is page par koi photo nahi hai. Pehle Uploads se photo daalo.');break}sel=[e.id];propsUI();render();await removeBgAI(e);break}
   case 'addShape':addEl(mkShape(a.shape||'rect',{w:unit()*.3,h:unit()*.3,fill:a.color||'#7c5cff'}));break;
   case 'addSticker':{const z=Math.round(unit()*.2);addEl(mkText({text:a.emoji||'⭐',size:z,w:z*1.6,weight:400,font:'Inter',name:'Sticker'}));break}
+  case 'tool':{const r=await runTool(a.name,a.body||{from:'rachna-studio'});say(r.ok?'🔌 '+a.name+' chala (HTTP '+r.status+')':'⚠️ '+a.name+' fail (HTTP '+r.status+')');break}
   case 'resize':{const W=clamp(+a.w||1080,50,8000),H=clamp(+a.h||1080,50,8000),s=Math.min(W/doc.w,H/doc.h),ox=(W-doc.w*s)/2,oy=(H-doc.h*s)/2;doc.pages.forEach(p=>p.els.forEach(e=>scaleEl(e,s,ox,oy)));doc.w=W;doc.h=H;commit();fullUI();fit();break}
   case 'styleSelected':{const S=selEls().length?selEls():page().els.filter(e=>e.type==='text');S.forEach(e=>{if(a.fill)e.fill=a.fill;if(a.font&&e.type==='text')e.font=a.font;if(a.size&&e.type==='text')e.size=+a.size;if(a.effect&&e.type==='text')textFx(e,a.effect);fitText(e)});commit();render();propsUI();break}
   case 'deleteSelected':del();break;
