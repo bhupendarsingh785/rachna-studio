@@ -191,6 +191,7 @@ a.ghost{color:var(--tx);text-decoration:none;padding:7px 10px;border-radius:10px
   <button id="autoB" title="Auto edit — bekar clip hatao, fade + saaf awaaz">✨<span class="hideM"> Auto</span></button>
   <button id="cleanB" title="Awaaz saaf karo (background noise kam)">🔊<span class="hideM"> Saaf awaaz</span></button>
   <button id="hindiB" title="Hindi me bolo (TTS)">🗣️<span class="hideM"> Hindi bol</span></button>
+  <button id="storyB" title="Story likho — mood ke hisaab se movie bane">🎭<span class="hideM"> Story</span></button>
  </div>
 </section>
 <section id="tl">
@@ -388,6 +389,103 @@ let t0=0,raf=0,onEnd=null;
 function play(){if(!P.clips.length&&!P.texts.length&&!P.audios.length)return toast('Pehle Media jodo');ensureAudio();AC.resume();if(t>=total()-.05)t=0;playing=true;t0=performance.now()-t*1000;$('#playBtn').textContent='❚❚';syncMedia();loop()}
 
 document.addEventListener('DOMContentLoaded',()=>{});
+
+/* ================= 🎭 STORY SE MOVIE (mood ke hisaab se) =================
+   Story likho -> har line ek scene. Mood pehchan kar:
+   - AI image (cinematic)
+   - background music (pehle se bane genMusic se: happy/calm/epic/lofi/suspense)
+   - ek chhota SFX (darr, pyaar, dukh...)
+   - caption + pacing (darr me dheemi, action me tez)
+*/
+const STORY_MOODS = {
+  horror:   { kw:['dar','dara','bhoot','bhut','pret','atma','raat','andhera','khoon','chilla','darr','kabristan','shamshan','khatra','horror','scary','ghost','saya','khauf','darwaza','sannata'], music:'suspense', dur:4.2, kb:0.10, trans:'fade' },
+  romance:  { kw:['pyaar','pyar','ishq','mohabbat','dil','romantic','love','chahat','yaad','milna','haath','dosti','shaadi'], music:'calm', dur:3.4, kb:0.16, trans:'fade' },
+  sad:      { kw:['dukh','rona','aansu','akela','tanha','maa','majboor','judai','bichhad','maut','sad','alone','tears','toot'], music:'lofi', dur:4.0, kb:0.08, trans:'fade' },
+  happy:    { kw:['khushi','masti','jeet','holi','party','nac','hans','muskur','khush','happy','celebrat','tyohar','diwali','mubarak'], music:'happy', dur:2.6, kb:0.20, trans:'none' },
+  action:   { kw:['bhaag','daud','police','goli','maar','fight','ladai','dhamaka','blast','chase','attack','bachao'], music:'epic', dur:1.8, kb:0.22, trans:'none' },
+  suspense: { kw:['raaz','jasoos','shak','plan','secret','khoj','sawal','mystery','investigat','chhupa','police'], music:'suspense', dur:3.2, kb:0.12, trans:'fade' }
+};
+function storyMoodOf(txt){
+  const t=(txt||'').toLowerCase();
+  let best='suspense', bestN=0;
+  for(const [k,v] of Object.entries(STORY_MOODS)){
+    let n=0; v.kw.forEach(w=>{ if(t.includes(w)) n++; });
+    if(n>bestN){ bestN=n; best=k; }
+  }
+  if(!bestN){
+    if(/[!]{2,}|😱|😨/.test(txt)) return 'horror';
+    if(/😂|😍|🥳|🎉/.test(txt)) return 'happy';
+    if(/😢|😭|💔/.test(txt)) return 'sad';
+  }
+  return best;
+}
+function storyScenes(txt){
+  const lines=String(txt||'').split(/\n+|(?<=[.!?])\s+/).map(x=>x.trim()).filter(x=>x.length>2);
+  return lines.length?lines:[String(txt||'').trim()].filter(Boolean);
+}
+async function storySfx(mood){
+  const sec=1.6, sr=44100, oc=new OfflineAudioContext(1,Math.ceil(sr*sec),sr);
+  const master=oc.createGain();master.gain.value=.5;master.connect(oc.destination);
+  const tone=(f,t0,d,type,vol,slide)=>{const o=oc.createOscillator(),g=oc.createGain();o.type=type;o.frequency.setValueAtTime(f,t0);
+    if(slide)o.frequency.linearRampToValueAtTime(f*slide,t0+d);
+    g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(vol,t0+.02);g.gain.exponentialRampToValueAtTime(.001,t0+d);
+    o.connect(g);g.connect(master);o.start(t0);o.stop(t0+d+.05)};
+  const nz=(t0,d,vol,f,type)=>{const b=oc.createBuffer(1,Math.ceil(sr*d),sr),dd=b.getChannelData(0);
+    for(let i=0;i<dd.length;i++)dd[i]=Math.random()*2-1;
+    const src=oc.createBufferSource();src.buffer=b;const fl=oc.createBiquadFilter();fl.type=type||'bandpass';fl.frequency.value=f||900;
+    const g=oc.createGain();g.gain.setValueAtTime(vol,t0);g.gain.exponentialRampToValueAtTime(.001,t0+d);
+    src.connect(fl);fl.connect(g);g.connect(master);src.start(t0);src.stop(t0+d)};
+  if(mood==='horror'){nz(.15,.7,.25,600);tone(60,.45,.6,'sine',.3,.6)}
+  else if(mood==='romance'){tone(880,.1,.5,'sine',.12);tone(1174,.35,.5,'sine',.09)}
+  else if(mood==='sad'){tone(300,.1,1.2,'sine',.12,.7)}
+  else if(mood==='happy'){for(let i=0;i<6;i++)tone(600+i*120,i*.07,.18,'sine',.10)}
+  else if(mood==='action'){nz(0,.25,.3,1800,'highpass')}
+  else{tone(150,0,1.4,'triangle',.14,1.6)}
+  return wav(await oc.startRendering());
+}
+async function storyToMovie(){
+  const raw=prompt('Apni story likho (Hindi/Hinglish). Har line = ek scene:');
+  if(!raw) return;
+  const scenes=storyScenes(raw).slice(0,12);
+  if(!scenes.length) return toast('Story khaali hai');
+  if(!confirm(scenes.length+' scene banenge (AI image + music + awaaz). 1-2 minute lagenge. Chalein?')) return;
+  P.clips=[];P.texts=[];P.audios=[];P.overs=[];sel=null;commit();
+  let tStart=0;
+  for(let i=0;i<scenes.length;i++){
+    const line=scenes[i], mood=storyMoodOf(line), M=STORY_MOODS[mood];
+    let m=null;
+    try{
+      const w=Math.round(P.w*0.6),h=Math.round(P.h*0.6);
+      const url=`https://image.pollinations.ai/prompt/${encodeURIComponent('cinematic '+mood+' scene: '+line+', indian film still, dramatic light')}?width=${w}&height=${h}&nologo=true&seed=${Math.floor(Math.random()*1e6)}`;
+      const res=await fetch(url); if(res.ok) m=await addMediaBlob(await res.blob(),'scene '+(i+1)+' ('+mood+')','image');
+    }catch(e){}
+    if(!m){
+      const c=document.createElement('canvas');c.width=P.w;c.height=P.h;const x=c.getContext('2d');
+      const pal={horror:['#0b0b12','#2b0b12'],romance:['#2b0b2e','#ff6fa5'],sad:['#101828','#334155'],happy:['#0b1a2e','#00d4b4'],action:['#1a0b0b','#f97316'],suspense:['#0b1220','#6366f1']}[mood]||['#111','#333'];
+      const g=x.createLinearGradient(0,0,P.w,P.h);g.addColorStop(0,pal[0]);g.addColorStop(1,pal[1]);
+      x.fillStyle=g;x.fillRect(0,0,P.w,P.h);
+      const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+      m=await addMediaBlob(blob,'card '+(i+1),'image');
+    }
+    P.clips.push({id:uid(),type:'image',media:m.id,in:0,out:0,dur:M.dur,speed:1,vol:1,trans:i?M.trans:'none',filter:'none',kb:true,kbAmt:M.kb,fit:'cover',clean:false});
+    try{
+      const blob=await genMusic(M.music,Math.ceil(M.dur)+1);
+      const am=await addMediaBlob(blob,mood+' music','audio');
+      P.audios.push({id:uid(),media:am.id,name:mood+' music',start:tStart,in:0,dur:M.dur,vol:.55,fadeIn:.4,fadeOut:.6});
+    }catch(e){}
+    try{
+      const blob=await storySfx(mood);
+      const am=await addMediaBlob(blob,'sfx '+mood,'audio');
+      P.audios.push({id:uid(),media:am.id,name:'sfx '+mood,start:tStart,in:0,dur:1.6,vol:.45,fadeIn:.05,fadeOut:.2});
+    }catch(e){}
+    P.texts.push({id:uid(),text:line.slice(0,90),x:P.w*.08,y:P.h*.80,w:P.w*.84,size:Math.round(P.h*.05),font:'Mukta',weight:700,fill:'#ffffff',align:'center',start:tStart,dur:M.dur,shadow:{on:true,blur:18,x:0,y:4,color:'#000000aa'}});
+    tStart+=M.dur;
+    toast('🎭 '+(i+1)+'/'+scenes.length+' — '+mood);
+  }
+  commit();
+  toast('✅ Movie taiyar — '+scenes.length+' scene (music + awaaz ke saath)');
+}
+
 /* ================= AUTO TOOLS ================= */
 function autoEdit(){
  if(!P.clips.length) return toast('Pehle media jodo');
@@ -516,6 +614,7 @@ function split(){const ca=P.clips.length?clipAt(t):null;if(!ca)return;const c=P.
 $('#splitB').onclick=split;$('#autoB')&&($('#autoB').onclick=autoEdit);
 $('#cleanB')&&($('#cleanB').onclick=cleanAll);
 $('#hindiB')&&($('#hindiB').onclick=()=>hindiVoice());
+$('#storyB')&&($('#storyB').onclick=storyToMovie);
 $('#delB').onclick=delSel;$('#undoB').onclick=undo;$('#redoB').onclick=redo;
 /* ---------- text presets ---------- */
 function addTextItem(o){const x=Object.assign({id:uid(),text:'Apna text',start:Math.round(t*10)/10,dur:3,x:.5,y:.5,size:Math.round(Math.min(P.w,P.h)*.08),color:'#ffffff',font:'Poppins',weight:800,anim:'pop',bg:null,stroke:null,glow:false},o);P.texts.push(x);sel={k:'text',id:x.id};commit();propsUI();return x}
