@@ -126,6 +126,7 @@ a.ghost{color:var(--tx);text-decoration:none;padding:7px 10px;border-radius:10px
   <button data-t="media" class="on"><b>➕</b>Media</button>
   <button data-t="text"><b>T</b>Text</button>
   <button data-t="music"><b>🎵</b>Music</button>
+  <button data-t="story"><b>🎭</b>Story</button>
   <button data-t="movie"><b>🎬</b>AI Movie</button>
   <button data-t="agent"><b>🤖</b>Agent</button>
   <button data-t="props"><b>⚙️</b>Edit</button>
@@ -152,6 +153,18 @@ a.ghost{color:var(--tx);text-decoration:none;padding:7px 10px;border-radius:10px
    <p class="hint">Playhead se record shuru hoga. Dobara dabao to band.</p>
    <h4>Apna gaana</h4>
    <button style="width:100%" id="impA">🎵 Audio file jodo</button>
+  </div>
+  <div class="tab" id="t-story"><h3>🎭 Story se Movie</h3>
+   <p class="hint">Apni kahani yahan likho — <b>har line ek scene</b> banegi. System khud mood pehchanega (darr, pyaar, dukh, khushi, action) aur usi hisaab se image, music, awaaz aur speed laga dega.</p>
+   <textarea id="stText" rows="6" placeholder="Jungle ki kahani
+Raat ka sannata tha, pedh khamosh khade the.
+Achanak ek kadam ki awaaz aayi — dil zor se dhadka.
+Peeche mudte hi... ek chhota hiran khada tha.
+Bachche ne muskura kar use gale lagaya."></textarea>
+   <div class="row" style="margin-top:8px"><span>Max scene</span><input type="range" id="stN" min="2" max="12" value="8"><b class="val" id="stNv">8</b></div>
+   <button class="pri" style="width:100%" id="stGo">🎬 Story se movie banao</button>
+   <div class="hint" id="stMsg"></div>
+   <p class="hint">AI image + music + SFX sab browser me banta hai (image ke liye internet chahiye).</p>
   </div>
   <div class="tab" id="t-movie"><h3>🎬 AI Movie Maker</h3>
    <p class="hint">Kahani ya topic likho — AI scenes likhega, har scene ki image banayega, captions, transitions aur music laga kar movie taiyaar karega.</p>
@@ -443,10 +456,11 @@ async function storySfx(mood){
   else{tone(150,0,1.4,'triangle',.14,1.6)}
   return wav(await oc.startRendering());
 }
-async function storyToMovie(){
-  const raw=prompt('Apni story likho (Hindi/Hinglish). Har line = ek scene:');
+async function storyToMovie(rawIn){
+  const raw=(rawIn!==undefined&&rawIn!==null)?rawIn:prompt('Apni story likho (Hindi/Hinglish). Har line = ek scene:');
   if(!raw) return;
-  const scenes=storyScenes(raw).slice(0,12);
+  const maxN=+($('#stN')&&$('#stN').value||8);
+  const scenes=storyScenes(raw).slice(0,Math.max(2,maxN));
   if(!scenes.length) return toast('Story khaali hai');
   if(!confirm(scenes.length+' scene banenge (AI image + music + awaaz). 1-2 minute lagenge. Chalein?')) return;
   P.clips=[];P.texts=[];P.audios=[];P.overs=[];sel=null;commit();
@@ -455,9 +469,8 @@ async function storyToMovie(){
     const line=scenes[i], mood=storyMoodOf(line), M=STORY_MOODS[mood];
     let m=null;
     try{
-      const w=Math.round(P.w*0.6),h=Math.round(P.h*0.6);
-      const url=`https://image.pollinations.ai/prompt/${encodeURIComponent('cinematic '+mood+' scene: '+line+', indian film still, dramatic light')}?width=${w}&height=${h}&nologo=true&seed=${Math.floor(Math.random()*1e6)}`;
-      const res=await fetch(url); if(res.ok) m=await addMediaBlob(await res.blob(),'scene '+(i+1)+' ('+mood+')','image');
+      const blob=await aiImageBlob('cinematic '+mood+' scene: '+line+', indian film still, dramatic lighting, film grain');
+      m=await addMediaBlob(blob,'scene '+(i+1)+' ('+mood+')','image');
     }catch(e){}
     if(!m){
       const c=document.createElement('canvas');c.width=P.w;c.height=P.h;const x=c.getContext('2d');
@@ -480,6 +493,7 @@ async function storyToMovie(){
     }catch(e){}
     P.texts.push({id:uid(),text:line.slice(0,90),x:P.w*.08,y:P.h*.80,w:P.w*.84,size:Math.round(P.h*.05),font:'Mukta',weight:700,fill:'#ffffff',align:'center',start:tStart,dur:M.dur,shadow:{on:true,blur:18,x:0,y:4,color:'#000000aa'}});
     tStart+=M.dur;
+    const sm=$('#stMsg');if(sm)sm.textContent='🎭 '+(i+1)+'/'+scenes.length+' — '+mood+' ('+(mood==='horror'?'darr':mood)+')';
     toast('🎭 '+(i+1)+'/'+scenes.length+' — '+mood);
   }
   commit();
@@ -614,7 +628,15 @@ function split(){const ca=P.clips.length?clipAt(t):null;if(!ca)return;const c=P.
 $('#splitB').onclick=split;$('#autoB')&&($('#autoB').onclick=autoEdit);
 $('#cleanB')&&($('#cleanB').onclick=cleanAll);
 $('#hindiB')&&($('#hindiB').onclick=()=>hindiVoice());
-$('#storyB')&&($('#storyB').onclick=storyToMovie);
+$('#storyB')&&($('#storyB').onclick=()=>{const b=document.querySelector('[data-t=\"story\"]');if(b)b.click();});
+$('#stN')&&($('#stN').oninput=e=>{$('#stNv').textContent=e.target.value});
+$('#stGo')&&($('#stGo').onclick=async()=>{
+  const t=$('#stText').value.trim();
+  if(!t) return toast('Pehle story likho');
+  const btn=$('#stGo');btn.disabled=true;btn.textContent='Ban raha hai…';
+  try{await storyToMovie(t)}catch(e){console.error(e);toast('Story movie me dikkat: '+(e.message||''))}
+  btn.disabled=false;btn.textContent='🎬 Story se movie banao';
+});
 $('#delB').onclick=delSel;$('#undoB').onclick=undo;$('#redoB').onclick=redo;
 /* ---------- text presets ---------- */
 function addTextItem(o){const x=Object.assign({id:uid(),text:'Apna text',start:Math.round(t*10)/10,dur:3,x:.5,y:.5,size:Math.round(Math.min(P.w,P.h)*.08),color:'#ffffff',font:'Poppins',weight:800,anim:'pop',bg:null,stroke:null,glow:false},o);P.texts.push(x);sel={k:'text',id:x.id};commit();propsUI();return x}
