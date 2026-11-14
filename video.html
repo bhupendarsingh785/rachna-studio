@@ -118,9 +118,31 @@ a.ghost{color:var(--tx);text-decoration:none;padding:7px 10px;border-radius:10px
  </select>
  <button class="ghost" id="undoB" title="Undo">↶</button><button class="ghost" id="redoB" title="Redo">↷</button>
  <div class="sp"></div>
+ <button class="ghost" id="storyTop" title="Kahani likho — movie ban jayegi" style="background:linear-gradient(135deg,#7c5cff,#ff3fa4);color:#fff;font-weight:800;border:0">✍️<span class="hideM"> Kahani likho</span></button>
  <button class="ghost" id="newB" title="Naya project">🆕<span class="hideM"> Naya</span></button>
  <button class="pri" id="exportB">⬇ Export<span class="hideM"> Video</span></button>
 </header>
+<div id="storySheet" style="display:none;position:fixed;inset:0;background:rgba(8,8,14,.92);z-index:9999;padding:14px;overflow:auto">
+ <div style="max-width:720px;margin:0 auto;background:#141420;border:1px solid #2a2a3d;border-radius:18px;padding:16px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+   <b style="font-size:19px;flex:1">✍️ Apni kahani likho</b>
+   <button id="storyX" style="background:#2a2a3d;border:0;color:#fff;border-radius:10px;padding:8px 12px;font-size:16px">✕</button>
+  </div>
+  <p class="hint" style="margin:0 0 10px">Har line ek scene banegi. System khud mood pehchanega (darr, pyaar, dukh, khushi, action) aur usi hisaab se image, music, awaaz aur speed laga dega.</p>
+  <textarea id="storyIn" rows="9" style="width:100%;background:#0f0f18;border:1px solid #2a2a3d;color:#fff;border-radius:12px;padding:12px;font-size:16px;line-height:1.5" placeholder="Jungle ki kahani
+Raat ka sannata tha, pedh khamosh khade the.
+Achanak kadam ki awaaz aayi — dil zor se dhadka.
+Peeche mudte hi ek chhota hiran khada tha.
+Bachche ne muskura kar use gale lagaya."></textarea>
+  <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
+   <label style="font-size:14px;opacity:.8">Max scene</label>
+   <input type="range" id="storyN" min="2" max="12" value="8" style="flex:1;min-width:120px">
+   <b id="storyNv">8</b>
+  </div>
+  <button id="storyGo" style="width:100%;margin-top:12px;padding:16px;border:0;border-radius:14px;background:linear-gradient(135deg,#7c5cff,#ff3fa4);color:#fff;font-size:17px;font-weight:800">🎬 Movie banao</button>
+  <div id="storyMsg" class="hint" style="margin-top:10px"></div>
+ </div>
+</div>
 <aside id="side">
  <nav id="tabs">
   <button data-t="media" class="on"><b>➕</b>Media</button>
@@ -628,7 +650,20 @@ function split(){const ca=P.clips.length?clipAt(t):null;if(!ca)return;const c=P.
 $('#splitB').onclick=split;$('#autoB')&&($('#autoB').onclick=autoEdit);
 $('#cleanB')&&($('#cleanB').onclick=cleanAll);
 $('#hindiB')&&($('#hindiB').onclick=()=>hindiVoice());
+function openStory(){const sh=$('#storySheet');if(sh)sh.style.display='block';setTimeout(()=>{const t=$('#storyIn');if(t)t.focus()},80)}
+function closeStory(){const sh=$('#storySheet');if(sh)sh.style.display='none'}
 $('#storyB')&&($('#storyB').onclick=()=>{const b=document.querySelector('[data-t=\"story\"]');if(b)b.click();});
+$('#storyTop')&&($('#storyTop').onclick=openStory);
+$('#storyX')&&($('#storyX').onclick=closeStory);
+$('#storyN')&&($('#storyN').oninput=e=>{$('#storyNv').textContent=e.target.value;const a=$('#stN');if(a){a.value=e.target.value;const v=$('#stNv');if(v)v.textContent=e.target.value}});
+$('#storyGo')&&($('#storyGo').onclick=async()=>{
+  const t=$('#storyIn').value.trim();
+  if(!t) return toast('Pehle kahani likho');
+  const b=$('#storyGo');b.disabled=true;b.textContent='Ban raha hai… (1-2 min)';
+  const a=$('#stN');if(a)a.value=$('#storyN').value;
+  try{await storyToMovie(t);closeStory()}catch(e){console.error(e);toast('Dikkat: '+(e.message||''))}
+  b.disabled=false;b.textContent='🎬 Movie banao';
+});
 $('#stN')&&($('#stN').oninput=e=>{$('#stNv').textContent=e.target.value});
 $('#stGo')&&($('#stGo').onclick=async()=>{
   const t=$('#stText').value.trim();
