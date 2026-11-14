@@ -227,6 +227,7 @@ Bachche ne muskura kar use gale lagaya."></textarea>
   <button id="cleanB" title="Awaaz saaf karo (background noise kam)">🔊<span class="hideM"> Saaf awaaz</span></button>
   <button id="hindiB" title="Hindi me bolo (TTS)">🗣️<span class="hideM"> Hindi bol</span></button>
   <button id="storyB" title="Story likho — mood ke hisaab se movie bane">🎭<span class="hideM"> Story</span></button>
+  <button id="narrB" title="Kahani bolo (Hindi awaaz)">🔈<span class="hideM"> Kahani bolo</span></button>
  </div>
 </section>
 <section id="tl">
@@ -421,7 +422,7 @@ function syncMedia(){
   else if(!el.paused)el.pause()});
 }
 let t0=0,raf=0,onEnd=null;
-function play(){if(!P.clips.length&&!P.texts.length&&!P.audios.length)return toast('Pehle Media jodo');ensureAudio();AC.resume();if(t>=total()-.05)t=0;playing=true;t0=performance.now()-t*1000;$('#playBtn').textContent='❚❚';syncMedia();loop()}
+function play(){if(!P.clips.length&&!P.texts.length&&!P.audios.length)return toast('Pehle Media jodo');if(t<.05)narrateReset();ensureAudio();AC.resume();if(t>=total()-.05)t=0;playing=true;t0=performance.now()-t*1000;$('#playBtn').textContent='❚❚';syncMedia();loop()}
 
 document.addEventListener('DOMContentLoaded',()=>{});
 
@@ -455,8 +456,19 @@ function storyMoodOf(txt){
   return best;
 }
 function storyScenes(txt){
-  const lines=String(txt||'').split(/\n+|(?<=[.!?])\s+/).map(x=>x.trim()).filter(x=>x.length>2);
-  return lines.length?lines:[String(txt||'').trim()].filter(Boolean);
+  let t=String(txt||'').replace(/\r/g,'');
+  // Hindi danda (।), . ! ? ; aur nayi line — sab par todo
+  let parts=t.split(/\n+|(?<=[।.!?;])\s+/).map(x=>x.trim()).filter(x=>x.length>2);
+  // agar ek hi bada paragraph ho to ~9 shabd ke tukdon me todo
+  const out=[];
+  parts.forEach(x=>{
+    if(x.split(/\s+/).length<=14){out.push(x);return}
+    const w=x.split(/\s+/);let buf=[];
+    for(const word of w){buf.push(word);if(buf.length>=9){out.push(buf.join(' '));buf=[]}}
+    if(buf.length)out.push(buf.join(' '));
+  });
+  if(!out.length){const t2=String(txt||'').trim();if(t2)out.push(t2)}
+  return out;
 }
 async function storySfx(mood){
   const sec=1.6, sr=44100, oc=new OfflineAudioContext(1,Math.ceil(sr*sec),sr);
@@ -496,9 +508,21 @@ async function storyToMovie(rawIn){
     }catch(e){}
     if(!m){
       const c=document.createElement('canvas');c.width=P.w;c.height=P.h;const x=c.getContext('2d');
-      const pal={horror:['#0b0b12','#2b0b12'],romance:['#2b0b2e','#ff6fa5'],sad:['#101828','#334155'],happy:['#0b1a2e','#00d4b4'],action:['#1a0b0b','#f97316'],suspense:['#0b1220','#6366f1']}[mood]||['#111','#333'];
-      const g=x.createLinearGradient(0,0,P.w,P.h);g.addColorStop(0,pal[0]);g.addColorStop(1,pal[1]);
+      const P2={horror:['#05050a','#2b0b12','🌑'],romance:['#2b0b2e','#ff6fa5','💞'],sad:['#0b1220','#475569','🌧️'],happy:['#0b1a2e','#00d4b4','✨'],action:['#1a0b0b','#f97316','⚡'],suspense:['#0b1220','#6366f1','🔎']}[mood]||['#111','#333','🎬'];
+      const g=x.createLinearGradient(0,0,P.w,P.h);g.addColorStop(0,P2[0]);g.addColorStop(1,P2[1]);
       x.fillStyle=g;x.fillRect(0,0,P.w,P.h);
+      // halke dhabbe (depth)
+      for(let k=0;k<14;k++){x.globalAlpha=.06;x.beginPath();x.arc(Math.random()*P.w,Math.random()*P.h,Math.random()*P.w*.22+40,0,7);x.fillStyle='#fff';x.fill()}
+      x.globalAlpha=1;
+      // vignette
+      const vg=x.createRadialGradient(P.w/2,P.h/2,P.h*.2,P.w/2,P.h/2,P.h*.85);
+      vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.55)');
+      x.fillStyle=vg;x.fillRect(0,0,P.w,P.h);
+      // bada emoji + scene number
+      x.textAlign='center';x.fillStyle='rgba(255,255,255,.9)';
+      x.font=Math.round(P.h*.18)+'px serif';x.fillText(P2[2],P.w/2,P.h*.44);
+      x.font='700 '+Math.round(P.h*.045)+'px Poppins, sans-serif';x.fillStyle='rgba(255,255,255,.75)';
+      x.fillText('SCENE '+(i+1),P.w/2,P.h*.55);
       const blob=await new Promise(r=>c.toBlob(r,'image/png'));
       m=await addMediaBlob(blob,'card '+(i+1),'image');
     }
@@ -558,7 +582,35 @@ function hindiVoice(text){
  toast('🗣️ Hindi me bol raha hoon');
 }
 function pause(){playing=false;cancelAnimationFrame(raf);$('#playBtn').textContent='▶';syncMedia();draw()}
-function loop(){if(!playing)return;t=(performance.now()-t0)/1000;const T=total();if(t>=T){t=T;draw();pause();if(onEnd){const f=onEnd;onEnd=null;f()}return}syncMedia();draw();autoScroll();raf=requestAnimationFrame(loop)}
+/* ---------- 🔈 kahani bolne wala (narration) ---------- */
+let narrate=false, spoken=new Set();
+function narrateReset(){spoken.clear();try{speechSynthesis.cancel()}catch(e){}}
+function narrateTick(){
+ if(!narrate||!('speechSynthesis' in window))return;
+ const list=(P.texts||[]).filter(x=>x.text&&x.text.trim().length>1);
+ for(const x of list){
+  const st=+x.start||0;
+  if(t>=st && t<st+(+x.dur||3) && !spoken.has(x.id)){
+   spoken.add(x.id);
+   try{
+    const u=new SpeechSynthesisUtterance(String(x.text).slice(0,180));
+    u.lang='hi-IN';u.rate=.95;u.pitch=1;
+    const vs=speechSynthesis.getVoices().filter(v=>/hi|hindi/i.test(v.lang+v.name));
+    if(vs.length)u.voice=vs[0];
+    speechSynthesis.speak(u);
+   }catch(e){}
+  }
+ }
+}
+function toggleNarrate(){
+ if(!('speechSynthesis' in window))return toast('Is browser me awaaz nahi');
+ narrate=!narrate;
+ const b=$('#narrB');if(b)b.classList.toggle('pri',narrate);
+ toast(narrate?'🔈 Kahani bolegi (Hindi awaaz)':'🔇 Awaaz band');
+ if(!narrate)try{speechSynthesis.cancel()}catch(e){}
+}
+
+function loop(){if(!playing)return;t=(performance.now()-t0)/1000;const T=total();if(t>=T){t=T;draw();pause();if(onEnd){const f=onEnd;onEnd=null;f()}return}syncMedia();draw();autoScroll();narrateTick();raf=requestAnimationFrame(loop)}
 function seek(x){t=clamp(x,0,total());if(playing)t0=performance.now()-t*1000;syncMedia();draw()}
 function autoScroll(){const s=$('#tlScroll'),x=t*pps;if(x>s.scrollLeft+s.clientWidth-40||x<s.scrollLeft)s.scrollLeft=x-60}
 $('#playBtn').onclick=()=>playing?pause():play();$('#toStart').onclick=()=>seek(0);$('#back1').onclick=()=>seek(t-1);$('#fwd1').onclick=()=>seek(t+1);$('#fBack').onclick=()=>{if(playing)pause();seek(Math.round(t*P.fps-1)/P.fps)};$('#fNext').onclick=()=>{if(playing)pause();seek(Math.round(t*P.fps+1)/P.fps)};
@@ -652,6 +704,7 @@ $('#cleanB')&&($('#cleanB').onclick=cleanAll);
 $('#hindiB')&&($('#hindiB').onclick=()=>hindiVoice());
 function openStory(){const sh=$('#storySheet');if(sh)sh.style.display='block';setTimeout(()=>{const t=$('#storyIn');if(t)t.focus()},80)}
 function closeStory(){const sh=$('#storySheet');if(sh)sh.style.display='none'}
+$('#narrB')&&($('#narrB').onclick=toggleNarrate);
 $('#storyB')&&($('#storyB').onclick=()=>{const b=document.querySelector('[data-t=\"story\"]');if(b)b.click();});
 $('#storyTop')&&($('#storyTop').onclick=openStory);
 $('#storyX')&&($('#storyX').onclick=closeStory);
