@@ -91,12 +91,12 @@ const PATH = "studio/series/user/ep01.json";
 const ACTIONS = `https://github.com/${REPO.owner}/${REPO.repo}/actions`;
 
 const MOODS = {
-  horror:   { kw:["dar","dara","bhoot","pret","raat","andhera","khoon","chilla","kabristan","shamshan","khatra","horror","ghost","khauf","sannata"], music:"horror", cam:"in" },
-  romance:  { kw:["pyaar","pyar","ishq","mohabbat","dil","romantic","love","chahat","milna","haath","dosti"], music:"romance", cam:"in" },
-  sad:      { kw:["dukh","rona","aansu","akela","tanha","maa","judai","bichhad","maut","sad","alone","toot"], music:"sad", cam:"out" },
-  happy:    { kw:["khushi","masti","jeet","holi","party","nac","hans","muskur","khush","happy","tyohar","diwali","mubarak"], music:"happy", cam:"in" },
-  action:   { kw:["bhaag","daud","police","goli","maar","fight","ladai","dhamaka","blast","chase","bachao"], music:"action", cam:"fastin" },
-  suspense: { kw:["raaz","jasoos","shak","plan","secret","khoj","sawal","mystery","chhupa"], music:"mystery", cam:"in" }
+  horror:   { kw:["dar","dara","bhoot","pret","raat","andhera","khoon","chilla","kabristan","shamshan","khatra","horror","ghost","khauf","sannata","डर","भूत","रात","अंधेरा","चीख","खून","सन्नाटा","डरावनी"], music:"horror", cam:"in" },
+  romance:  { kw:["pyaar","pyar","ishq","mohabbat","dil","romantic","love","chahat","milna","haath","dosti","प्यार","दिल","मोहब्बत","दोस्ती","साथ"], music:"romance", cam:"in" },
+  sad:      { kw:["dukh","rona","aansu","akela","tanha","maa","judai","bichhad","maut","sad","alone","toot","घायल","दर्द","रोया","अकेला","दुख","आंसू","मदद","बीमार","मजबूर","तड़प"], music:"sad", cam:"out" },
+  happy:    { kw:["khushi","masti","jeet","holi","party","nac","hans","muskur","khush","happy","tyohar","diwali","mubarak","खुशी","हँस","मुस्कुर","जीत","त्योहार","मस्ती"], music:"happy", cam:"in" },
+  action:   { kw:["bhaag","daud","police","goli","maar","fight","ladai","dhamaka","blast","chase","bachao","भाग","दौड़","लड़ाई","बचाओ","हमला"], music:"action", cam:"fastin" },
+  suspense: { kw:["raaz","jasoos","shak","plan","secret","khoj","sawal","mystery","chhupa","राज","रहस्य","सवाल","छुपा","शक"], music:"mystery", cam:"in" }
 };
 const HINDI_LABEL = { horror:"😱 darr", romance:"💞 pyaar", sad:"😢 dukh", happy:"😄 khushi", action:"⚡ action", suspense:"🔎 suspense" };
 
@@ -132,9 +132,34 @@ function scenes(txt){
   });
   return out;
 }
+// ---------- kahani ko andar se samajhna (seal) ----------
+function analyzeStory(txt){
+  const lines = scenes(txt);
+  const text = lines.join(" ");
+  // 1) mood arc: shuru -> beech -> ant
+  const arc = lines.map(l => moodOf(l));
+  // 2) kirdaar: jo naam baar baar aaye (capital ya 2+ baar aane wale shabd)
+  const stop = new Set(["और","फिर","एक","था","थी","वह","वो","हम","तुम","मैं","का","की","के","में","से","पर","को","ने","ही","भी","बहुत","अचानक","रात","दिन","था।","जंगल","गाँव","गांव","शहर","नदी","पहाड़","समुद्र","खेत","घर","स्कूल","बाज़ार","गया","गई","किया","कर","देखा","देखकर","लिया","हुआ","हुई","जाता","जाती","रहा","रही","कहा","बना","बनी","मिला","मिली","आया","आई","फिर","वहीं","यह","ये","सब","कुछ","कोई","अपने","अपनी","उस","इस"]);
+  const freq = {};
+  lines.forEach(l => String(l).split(/[\s,।.!?"'—]+/).forEach(w => {
+    const x = w.trim();
+    if (x.length < 2 || stop.has(x)) return;
+    freq[x] = (freq[x]||0) + 1;
+  }));
+  const names = Object.entries(freq).filter(([w,c]) => c >= 2 || /^[A-Z]/.test(w)).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]);
+  // 3) jagah (setting)
+  const places = ["जंगल","गाँव","गांव","शहर","नदी","पहाड़","समुद्र","खेत","घर","स्कूल","बाज़ार","रेगिस्तान","बारिश","रात"];
+  const setting = places.find(pl => text.includes(pl)) || "";
+  return { arc, names, setting, lines };
+}
+
 function buildEpisode(txt, maxN){
   const [W,H] = document.getElementById("size").value.split("x").map(Number);
   const lines = scenes(txt).slice(0, Math.max(2, maxN));
+  const A = analyzeStory(txt);
+  // "seal": har scene me wahi kirdaar, wahi jagah, wahi style — isliye movie ek jaisi lagti hai
+  const who = A.names.length ? ("main characters: " + A.names.join(", ") + ", same faces and same clothes in every scene") : "same main character in every scene, same face and same clothes";
+  const where = A.setting ? (", setting: " + A.setting + " (same place throughout)") : "";
   const ep = {
     title: (lines[0]||"Kahani").slice(0,60),
     style: STYLE_BASE,
@@ -144,7 +169,7 @@ function buildEpisode(txt, maxN){
       const m = moodOf(line);
       return {
         id: "s" + String(i+1).padStart(2,"0"),
-        img: line + ", " + EMOTION[m],
+        img: line + ", " + EMOTION[m] + ", " + who + where,
         lines: [["pratham", line]],
         music: MOODS[m].music,
         cam: MOODS[m].cam,
@@ -167,6 +192,13 @@ function setMsg(t, cls){ const m=$("#msg"); m.textContent=t; m.className="hint "
 
 function showPlan(ep){
   $("#planCard").style.display = "block";
+  const A = analyzeStory($("#story").value);
+  const arcTxt = A.arc.map(m => HINDI_LABEL[m].split(" ")[1] || m).join(" → ");
+  $("#plan").innerHTML = `<div style="margin-bottom:8px">
+      <span class="chip">👤 ${A.names.length ? A.names.join(", ") : "ek kirdaar"}</span>
+      <span class="chip">📍 ${A.setting || "jagah"}</span>
+      <span class="chip">🎭 ${arcTxt}</span>
+    </div>` + $("#plan").innerHTML;
   $("#plan").innerHTML = ep.scenes.map((s,i)=>{
     const m = moodOf(s.img);
     return `<div style="padding:6px 0;border-bottom:1px solid var(--line)">
