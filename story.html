@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kahani se Video — Toonistaan + Rachna</title>
+<style>
+  :root{--bg:#08080f;--card:#13131f;--line:#26263a;--txt:#eef0ff;--dim:#9aa0c0;--vio:#7c5cff;--pink:#ff3fa4;--green:#00d4b4;--amber:#ffb020}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#1a1440,#08080f 60%);color:var(--txt);
+       font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Devanagari",sans-serif;line-height:1.55}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 14px 60px}
+  h1{font-size:22px;margin:8px 0 4px;text-align:center}
+  .sub{color:var(--dim);font-size:13px;text-align:center;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+  textarea{width:100%;min-height:190px;background:#0f0f18;border:1px solid var(--line);color:var(--txt);
+           border-radius:12px;padding:12px;font-size:16px;line-height:1.6;font-family:inherit}
+  label{font-size:13px;color:var(--dim)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  input[type=range]{flex:1;min-width:120px}
+  input[type=text],input[type=password]{flex:1;min-width:180px;background:#0f0f18;border:1px solid var(--line);
+       color:var(--txt);border-radius:10px;padding:10px;font-size:14px;font-family:inherit}
+  button{border:0;border-radius:12px;padding:13px 16px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer}
+  .pri{background:linear-gradient(135deg,var(--vio),var(--pink));color:#fff;width:100%;font-size:17px;padding:16px}
+  .ghost{background:#1b1b2a;color:var(--txt);border:1px solid var(--line)}
+  .hint{color:var(--dim);font-size:12.5px}
+  .moods{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{font-size:12px;padding:4px 9px;border-radius:999px;background:#1b1b2a;border:1px solid var(--line);color:var(--dim)}
+  pre{background:#0f0f18;border:1px solid var(--line);border-radius:10px;padding:10px;overflow:auto;font-size:12px;max-height:220px}
+  .ok{color:var(--green)} .warn{color:var(--amber)} .err{color:#ff7a7a}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎬 Kahani se Video</h1>
+  <div class="sub">Story likho → Toonistaan (asli Hindi awaaz + motion + subtitle) video bana dega.<br>Har line = ek scene. Mood khud pehchana jayega.</div>
+
+  <div class="card">
+    <label>Apni kahani likho</label>
+    <textarea id="story" placeholder="जंगल की कहानी
+रात का सन्नाटा था, पेड़ खामोश खड़े थे।
+अचानक कदम की आवाज़ आई — दिल ज़ोर से धड़का।
+पीछे मुड़ते ही एक छोटा हिरण खड़ा था।
+बच्चे ने मुस्कुरा कर उसे गले लगाया।"></textarea>
+    <div class="row">
+      <label>Max scene</label>
+      <input type="range" id="n" min="2" max="12" value="6">
+      <b id="nv">6</b>
+    </div>
+    <div class="row">
+      <label>Size</label>
+      <select id="size" style="background:#0f0f18;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:8px">
+        <option value="1280x720">1280×720 (tez)</option>
+        <option value="1920x1080">1920×1080 (Full HD)</option>
+      </select>
+    </div>
+    <div class="moods" id="moods"></div>
+  </div>
+
+  <div class="card">
+    <label>GitHub token (ek baar) — repo me likhne ke liye</label>
+    <div class="row">
+      <input type="password" id="tok" placeholder="ghp_... (sirf tumhare phone me save hoga)">
+      <button class="ghost" id="saveTok">Save</button>
+    </div>
+    <p class="hint">Token banane ka link: <a href="https://github.com/settings/tokens/new?scopes=repo&description=Kahani%20Video" target="_blank" style="color:#9b8cff">github.com/settings/tokens/new</a> — scope me <b>repo</b> tick karo. Token sirf tumhare browser me rehta hai, kahin nahi bhejta.</p>
+  </div>
+
+  <button class="pri" id="go">🎬 Video banao</button>
+  <p class="hint" id="msg" style="margin-top:10px"></p>
+
+  <div class="card" id="planCard" style="display:none">
+    <label>Scene plan</label>
+    <div id="plan"></div>
+  </div>
+
+  <div class="card">
+    <label>Token nahi dena? To JSON copy karo</label>
+    <div class="row">
+      <button class="ghost" id="copyJson">📋 JSON copy karo</button>
+      <button class="ghost" id="dlJson">⬇ JSON download</button>
+    </div>
+    <p class="hint">Isse tum khud <code>studio/series/user/ep01.json</code> me paste kar sakte ho — phir GitHub par workflow chalega.</p>
+    <pre id="json" style="display:none"></pre>
+  </div>
+</div>
+
+<script>
+const REPO = { owner: "bhupendarsingh785", repo: "toonistaan-studio", branch: "main" };
+const PATH = "studio/series/user/ep01.json";
+const ACTIONS = `https://github.com/${REPO.owner}/${REPO.repo}/actions`;
+
+const MOODS = {
+  horror:   { kw:["dar","dara","bhoot","pret","raat","andhera","khoon","chilla","kabristan","shamshan","khatra","horror","ghost","khauf","sannata"], music:"horror", cam:"in" },
+  romance:  { kw:["pyaar","pyar","ishq","mohabbat","dil","romantic","love","chahat","milna","haath","dosti"], music:"romance", cam:"in" },
+  sad:      { kw:["dukh","rona","aansu","akela","tanha","maa","judai","bichhad","maut","sad","alone","toot"], music:"sad", cam:"out" },
+  happy:    { kw:["khushi","masti","jeet","holi","party","nac","hans","muskur","khush","happy","tyohar","diwali","mubarak"], music:"happy", cam:"in" },
+  action:   { kw:["bhaag","daud","police","goli","maar","fight","ladai","dhamaka","blast","chase","bachao"], music:"action", cam:"fastin" },
+  suspense: { kw:["raaz","jasoos","shak","plan","secret","khoj","sawal","mystery","chhupa"], music:"mystery", cam:"in" }
+};
+const HINDI_LABEL = { horror:"😱 darr", romance:"💞 pyaar", sad:"😢 dukh", happy:"😄 khushi", action:"⚡ action", suspense:"🔎 suspense" };
+
+function moodOf(t){
+  const s=(t||"").toLowerCase();
+  let best="happy", n=0;
+  for (const [k,v] of Object.entries(MOODS)) {
+    let c=0; v.kw.forEach(w=>{ if(s.includes(w)) c++; });
+    if (c>n){ n=c; best=k; }
+  }
+  return best;
+}
+function scenes(txt){
+  let parts=String(txt||"").replace(/\r/g,"").split(/\n+|(?<=[।.!?;])\s+/).map(x=>x.trim()).filter(x=>x.length>2);
+  const out=[];
+  parts.forEach(x=>{
+    const w=x.split(/\s+/);
+    if (w.length<=14){ out.push(x); return; }
+    let buf=[];
+    for (const word of w){ buf.push(word); if (buf.length>=9){ out.push(buf.join(" ")); buf=[]; } }
+    if (buf.length) out.push(buf.join(" "));
+  });
+  return out;
+}
+function buildEpisode(txt, maxN){
+  const [W,H] = document.getElementById("size").value.split("x").map(Number);
+  const lines = scenes(txt).slice(0, Math.max(2, maxN));
+  const ep = {
+    title: (lines[0]||"Kahani").slice(0,60),
+    style: ", original 3D animated movie style, cinematic warm lighting, indian village, highly detailed, no text, no watermark",
+    w: W, h: H, voice_rate: "-6%", seed: Math.floor(Math.random()*9999),
+    cast: {},
+    scenes: lines.map((line,i)=>{
+      const m = moodOf(line);
+      return {
+        id: "s" + String(i+1).padStart(2,"0"),
+        img: line,
+        lines: [["pratham", line]],
+        music: MOODS[m].music,
+        cam: MOODS[m].cam,
+        sfx: m==="horror"?["wind"]: m==="happy"?["chime"]: m==="action"?["whoosh"]: []
+      };
+    })
+  };
+  return ep;
+}
+
+// ---------- UI ----------
+const $ = s => document.querySelector(s);
+$("#n").oninput = e => { $("#nv").textContent = e.target.value; };
+$("#tok").value = localStorage.getItem("ym.gh.token") || "";
+$("#saveTok").onclick = () => {
+  localStorage.setItem("ym.gh.token", $("#tok").value.trim());
+  setMsg("✅ Token save ho gaya (sirf is phone me)", "ok");
+};
+function setMsg(t, cls){ const m=$("#msg"); m.textContent=t; m.className="hint "+(cls||""); }
+
+function showPlan(ep){
+  $("#planCard").style.display = "block";
+  $("#plan").innerHTML = ep.scenes.map((s,i)=>{
+    const m = moodOf(s.img);
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--line)">
+      <b>${i+1}.</b> ${escapeHtml(s.img.slice(0,70))}
+      <span class="chip">${HINDI_LABEL[m]}</span> <span class="chip">🎵 ${s.music}</span></div>`;
+  }).join("");
+  const counts = {};
+  ep.scenes.forEach(s=>{ const m=moodOf(s.img); counts[m]=(counts[m]||0)+1; });
+  $("#moods").innerHTML = Object.entries(counts).map(([k,v])=>`<span class="chip">${HINDI_LABEL[k]} ×${v}</span>`).join("");
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+async function ghPut(token, content){
+  const url = `https://api.github.com/repos/${REPO.owner}/${REPO.repo}/contents/${PATH}`;
+  let sha = null;
+  const r0 = await fetch(url + "?ref=" + REPO.branch, { headers: { Authorization: "Bearer " + token } });
+  if (r0.ok){ const j = await r0.json(); sha = j.sha; }
+  const body = { message: "kahani: naya episode", content: btoa(unescape(encodeURIComponent(content))), branch: REPO.branch };
+  if (sha) body.sha = sha;
+  const r = await fetch(url, { method: "PUT", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok){ const e = await r.text(); throw new Error("GitHub: " + r.status + " " + e.slice(0,120)); }
+  return await r.json();
+}
+
+$("#go").onclick = async () => {
+  const txt = $("#story").value.trim();
+  if (!txt) return setMsg("Pehle kahani likho", "warn");
+  const ep = buildEpisode(txt, +$("#n").value);
+  showPlan(ep);
+  const json = JSON.stringify(ep, null, 1);
+  $("#json").textContent = json;
+  const token = ($("#tok").value || localStorage.getItem("ym.gh.token") || "").trim();
+  if (!token) return setMsg("Token nahi hai — neeche se JSON copy karo, ya token daalo", "warn");
+  setMsg("⏳ GitHub par bhej raha hoon...");
+  try{
+    await ghPut(token, json);
+    setMsg("✅ Kahani bhej di! Video ban rahi hai (~6-8 min). Yahan dekho: " + ACTIONS, "ok");
+    window.open(ACTIONS, "_blank");
+  }catch(e){ setMsg("❌ " + e.message, "err"); }
+};
+
+$("#copyJson").onclick = async () => {
+  const txt = $("#story").value.trim();
+  if (!txt) return setMsg("Pehle kahani likho", "warn");
+  const ep = buildEpisode(txt, +$("#n").value);
+  showPlan(ep);
+  const json = JSON.stringify(ep, null, 1);
+  $("#json").style.display = "block";
+  $("#json").textContent = json;
+  try{ await navigator.clipboard.writeText(json); setMsg("📋 JSON copy ho gaya", "ok"); }
+  catch(e){ setMsg("Copy nahi hua — neeche se select karke copy karo", "warn"); }
+};
+$("#dlJson").onclick = () => {
+  const txt = $("#story").value.trim();
+  if (!txt) return setMsg("Pehle kahani likho", "warn");
+  const ep = buildEpisode(txt, +$("#n").value);
+  const blob = new Blob([JSON.stringify(ep, null, 1)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "ep01.json"; a.click();
+  setMsg("⬇ ep01.json download — repo me studio/series/user/ me daalo", "ok");
+};
+</script>
+</body>
+</html>
