@@ -100,6 +100,17 @@ const MOODS = {
 };
 const HINDI_LABEL = { horror:"😱 darr", romance:"💞 pyaar", sad:"😢 dukh", happy:"😄 khushi", action:"⚡ action", suspense:"🔎 suspense" };
 
+// emotion ke saath image prompt — isse scene me "feeling" aati hai
+const EMOTION = {
+  horror:   "dark horror mood, deep shadows, fearful wide eyes, fog, cold blue light, unsettling silence, cinematic dread",
+  romance:  "romantic warm golden light, tender loving expressions, soft bokeh, close and intimate, dreamy, emotional",
+  sad:      "sad emotional mood, teary eyes, muted grey-blue colors, rain, lonely figure, heartbroken, cinematic sorrow",
+  happy:    "joyful bright colors, big happy smiles, celebration, sunshine, laughing together, warm and cheerful",
+  action:   "high energy action, dynamic motion blur, dust and sparks, urgent expression, dramatic angle, thrilling",
+  suspense: "mysterious moody shadows, tense expression, half light, secretive atmosphere, cinematic mystery"
+};
+const STYLE_BASE = ", original 3D animated movie style like Pixar, indian village setting, expressive cartoon faces, cinematic lighting, emotional storytelling, highly detailed, no text, no watermark";
+
 function moodOf(t){
   const s=(t||"").toLowerCase();
   let best="happy", n=0;
@@ -126,14 +137,14 @@ function buildEpisode(txt, maxN){
   const lines = scenes(txt).slice(0, Math.max(2, maxN));
   const ep = {
     title: (lines[0]||"Kahani").slice(0,60),
-    style: ", original 3D animated movie style, cinematic warm lighting, indian village, highly detailed, no text, no watermark",
+    style: STYLE_BASE,
     w: W, h: H, voice_rate: "-6%", seed: Math.floor(Math.random()*9999),
     cast: {},
     scenes: lines.map((line,i)=>{
       const m = moodOf(line);
       return {
         id: "s" + String(i+1).padStart(2,"0"),
-        img: line,
+        img: line + ", " + EMOTION[m],
         lines: [["pratham", line]],
         music: MOODS[m].music,
         cam: MOODS[m].cam,
